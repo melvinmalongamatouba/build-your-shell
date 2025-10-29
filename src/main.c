@@ -206,7 +206,7 @@ int eval(const char* command, char* output)
   }
 
   char* path = getenv("PATH");
-  printf("command: %s\n", command);
+  //printf("command: %s\n", command);
   const char* executable = parse_till_space(command);
   char* full_path = path_with_executable(executable ,path);
   if (full_path != NULL)
