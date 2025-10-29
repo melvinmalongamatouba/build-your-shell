@@ -60,6 +60,12 @@ int eval(const char* command, char* output)
   {
     return suffix(command);
   }
+  if (hasPrefix(command, "echo"))
+  {
+    output = strncpy(output, command+strlen("echo "), strlen(command)-strlen("echo "));
+    strcat(output, "\n");
+    return -1;
+  }
   strcpy(output, command);
   const char* suffix = ": command not found\n";
   strcat(output, suffix);
