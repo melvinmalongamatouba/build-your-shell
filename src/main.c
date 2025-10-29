@@ -214,10 +214,6 @@ int eval(const char* command, char* output)
     // Retrieve arguments
     //Set up array for storing the arguments
     char** argc = calloc((size_t) 10, sizeof(char*)); //10 = max number of arguments
-    for (int i = 0; i<10 ; i++)
-    {
-      argc[i] = calloc(strlen(full_path)+1, sizeof(char));
-    }
     argc[0] = full_path;
     //Keeping track of the rank of our current argument
     int argument_rank=1;
@@ -230,10 +226,14 @@ int eval(const char* command, char* output)
       argument_rank++;
 
     }
-    for (int i = 0; i<10 ; i++)
+    //remove empty arguments
+    for (int i = 0; i<argument_rank; i++)
     {
       //printf("argc[%d] = %s\n", i, argc[i]);
+
     }
+
+
     return execv(full_path, argc);
   }
 
