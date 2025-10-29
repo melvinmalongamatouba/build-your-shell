@@ -125,6 +125,8 @@ int show_executable_in_path(const char* command, char* output, char* path)
       strcpy(output, command + strlen("type "));
       strcat(output, " is ");
       strcat(output, path_to_consider);
+      strcat(output, "/");
+      strcat(output, command + strlen("type "));
       strcat(output, "\n");
       return -1;
     }
