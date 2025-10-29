@@ -214,7 +214,7 @@ int eval(const char* command, char* output)
     // Retrieve arguments
     //Set up array for storing the arguments
     char** argc = calloc((size_t) 10, sizeof(char*)); //10 = max number of arguments
-    argc[0] = full_path;
+    argc[0] = executable;
     //Keeping track of the rank of our current argument
     int argument_rank=1;
     size_t index_next_argument = strlen(executable) + 1;
