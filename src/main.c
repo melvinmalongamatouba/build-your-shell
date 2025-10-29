@@ -209,43 +209,56 @@ int eval(const char* command, char* output)
   //printf("command: %s\n", command);
   const char* executable = parse_till_space(command);
   char* full_path = path_with_executable(executable ,path);
-  if (full_path != NULL)
-  { //The command exists
-    // Retrieve arguments
-    //Set up array for storing the arguments
-    char** argc = calloc((size_t) 10, sizeof(char*)); //10 = max number of arguments
-    argc[0] = executable;
-    //Keeping track of the rank of our current argument
-    int argument_rank=1;
-    size_t index_next_argument = strlen(executable) + 1;
-    while (command[index_next_argument] != '\0')
-    {
-      char* current_argument = parse_till_space(command+index_next_argument);
-      argc[argument_rank] = current_argument;
-      index_next_argument += strlen(current_argument) + 1;
-      argument_rank++;
+  if (full_path == NULL)
+  {
 
-    }
-    //remove empty arguments
-    for (int i = 0; i<argument_rank; i++)
-    {
-      //printf("argc[%d] = %s\n", i, argc[i]);
+    strcpy(output, command);
+    const char* suffix = ": command not found\n";
+    strcat(output, suffix);
+    return -1;
+}
+ //The command exists
+  // Retrieve arguments
+  //Set up array for storing the arguments
+  char** argc = calloc((size_t) 10, sizeof(char*)); //10 = max number of arguments
+  argc[0] = executable;
+  //Keeping track of the rank of our current argument
+  int argument_rank=1;
+  size_t index_next_argument = strlen(executable) + 1;
+  while (command[index_next_argument] != '\0')
+  {
+    char* current_argument = parse_till_space(command+index_next_argument);
+    argc[argument_rank] = current_argument;
+    index_next_argument += strlen(current_argument) + 1;
+    argument_rank++;
 
-    }
+  }
+  //remove empty arguments
+  for (int i = 0; i<argument_rank; i++)
+  {
+    //printf("argc[%d] = %s\n", i, argc[i]);
 
-
-    return execv(full_path, argc);
   }
 
 
-  strcpy(output, command);
-  const char* suffix = ": command not found\n";
-  strcat(output, suffix);
-  return -1;
+  pid_t pid = fork();
+  if (pid == 0)
+  {
+    execv(full_path, argc);
+  } else
+  {
+    int status;
+    waitpid(pid, &status, 0);
+    return -1;
+  }
+
+
+
 }
 
 void print(char* output)
 {
+  printf("at print\n");
   if (output != NULL && output[0] != '\0')
     printf("%s", output);
 }
