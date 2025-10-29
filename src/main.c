@@ -147,8 +147,9 @@ char* path_with_executable(const char* executable, char* path)
       strcat(output, executable);
       return output;
     }
-
-  return path_with_executable(executable, path+strlen(path_to_consider)+1);
+  const size_t step = strlen(path_to_consider);
+  free(path_to_consider);
+  return path_with_executable(executable, path+step+1);
   // Search in entire path environment variable minus the path already tested for
 
 }
@@ -174,6 +175,18 @@ int echo_(const char* command, char* output)
   return -1;
 }
 
+char* parse_till_space(const char* command)
+{
+  int i = 0;
+  while (command[i] != '\0' && command[i] != ' ')
+  {
+    i++;
+  }
+  char* prefix = calloc(i, sizeof(char));
+  strncpy(prefix, command, i);
+  return prefix;
+}
+
 int eval(const char* command, char* output)
 {
   //printf("at eval\n");
@@ -191,6 +204,40 @@ int eval(const char* command, char* output)
   {
     return type_(command, output);
   }
+
+  char* path = getenv("PATH");
+  printf("command: %s\n", command);
+  const char* executable = parse_till_space(command);
+  char* full_path = path_with_executable(executable ,path);
+  if (full_path != NULL)
+  { //The command exists
+    // Retrieve arguments
+    //Set up array for storing the arguments
+    char** argc = calloc((size_t) 10, sizeof(char*)); //10 = max number of arguments
+    for (int i = 0; i<10 ; i++)
+    {
+      argc[i] = calloc(strlen(full_path)+1, sizeof(char));
+    }
+    argc[0] = full_path;
+    //Keeping track of the rank of our current argument
+    int argument_rank=1;
+    size_t index_next_argument = strlen(executable) + 1;
+    while (command[index_next_argument] != '\0')
+    {
+      char* current_argument = parse_till_space(command+index_next_argument);
+      argc[argument_rank] = current_argument;
+      index_next_argument += strlen(current_argument) + 1;
+      argument_rank++;
+
+    }
+    for (int i = 0; i<10 ; i++)
+    {
+      //printf("argc[%d] = %s\n", i, argc[i]);
+    }
+    return execv(full_path, argc);
+  }
+
+
   strcpy(output, command);
   const char* suffix = ": command not found\n";
   strcat(output, suffix);
