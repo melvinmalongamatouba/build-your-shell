@@ -7,6 +7,12 @@ void print(char* output);
 bool hasPrefix(const char* command, const char* prefix);
 
 char empty_string[1024];
+char* const builtin[]= {
+  "type",
+  "echo",
+  "shell"
+};
+int const builtin_length = 3;
 
 int main(int argc, char *argv[]) {
   // Flush after every printf
@@ -65,6 +71,24 @@ int eval(const char* command, char* output)
     output = strncpy(output, command+strlen("echo "), strlen(command)-strlen("echo "));
     strcat(output, "\n");
     return -1;
+  }
+  if (hasPrefix(command, "type"))
+  {
+    for (int i = 0; i<builtin_length; i++)
+    {
+      if (strcmp(command + strlen("type "), builtin[i]) == 0)
+      {
+        strcpy(output, command + strlen("type "));
+        strcat(output, " is a shell builtin\n");
+        return -1;
+      }
+    }
+    strcpy(output, command + strlen("type "));
+    strcat(output, ": not found\n");
+    return -1;
+
+
+
   }
   strcpy(output, command);
   const char* suffix = ": command not found\n";
