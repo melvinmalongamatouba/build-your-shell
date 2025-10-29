@@ -21,7 +21,7 @@ int main(int argc, char *argv[]) {
 
 char* read(char* command)
 {
-  printf("$ \n");
+  printf("$  \n");
   scanf("%s", command ,stdin);
   return command;
 
