@@ -10,9 +10,10 @@ char empty_string[1024];
 char* const builtin[]= {
   "type",
   "echo",
-  "shell"
+  "shell",
+  "exit"
 };
-int const builtin_length = 3;
+int const builtin_length = 4;
 
 int main(int argc, char *argv[]) {
   // Flush after every printf
@@ -56,6 +57,9 @@ char suffix(const char* string)
     return false;
   return string[strlen(string) - 1]-48;
 }
+
+//-------------------------- Diff
+int echo(const char* command, char* output);
 
 int eval(const char* command, char* output)
 {
