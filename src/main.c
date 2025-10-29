@@ -51,15 +51,38 @@ bool hasPrefix(const char* command, const char* prefix)
   return (strncmp(prefix, command, strlen(prefix)-1) == 0);
 }
 
-char suffix(const char* string)
+int exit_(const char* command)
 {
-  if (string == NULL || strlen(string) == 0)
+  if (command == NULL || strlen(command) == 0)
     return false;
-  return string[strlen(string) - 1]-48;
+  return command[strlen(command) - 1]-48;
 }
 
-//-------------------------- Diff
-int echo(const char* command, char* output);
+//-------------------------- Different eval behaviors ---------------------------
+int type_(const char* command, char* output)
+{
+
+  for (int i = 0; i<builtin_length; i++)
+  {
+    if (strcmp(command + strlen("type "), builtin[i]) == 0)
+    {
+      strcpy(output, command + strlen("type "));
+      strcat(output, " is a shell builtin\n");
+      return -1;
+    }
+  }
+  strcpy(output, command + strlen("type "));
+  strcat(output, ": not found\n");
+  return -1;
+
+}
+
+int echo_(const char* command, char* output)
+{
+  output = strncpy(output, command+strlen("echo "), strlen(command)-strlen("echo "));
+  strcat(output, "\n");
+  return -1;
+}
 
 int eval(const char* command, char* output)
 {
@@ -68,31 +91,15 @@ int eval(const char* command, char* output)
   //printf("%d" , hasPrefix(command, "exit"));
   if (hasPrefix(command, "exit"))
   {
-    return suffix(command);
+    return exit_(command);
   }
   if (hasPrefix(command, "echo"))
   {
-    output = strncpy(output, command+strlen("echo "), strlen(command)-strlen("echo "));
-    strcat(output, "\n");
-    return -1;
+    return echo_(command, output);
   }
   if (hasPrefix(command, "type"))
   {
-    for (int i = 0; i<builtin_length; i++)
-    {
-      if (strcmp(command + strlen("type "), builtin[i]) == 0)
-      {
-        strcpy(output, command + strlen("type "));
-        strcat(output, " is a shell builtin\n");
-        return -1;
-      }
-    }
-    strcpy(output, command + strlen("type "));
-    strcat(output, ": not found\n");
-    return -1;
-
-
-
+    return type_(command, output);
   }
   strcpy(output, command);
   const char* suffix = ": command not found\n";
