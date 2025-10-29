@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 char* read(char* command);
 char* eval(char* command);
 void print(char* output);
@@ -13,7 +14,6 @@ int main(int argc, char *argv[]) {
     read(command);
     char* output = eval(command);
     print(output);
-    printf("%s: command not found", command);
   }
 
   return 0;
@@ -21,7 +21,7 @@ int main(int argc, char *argv[]) {
 
 char* read(char* command)
 {
-  printf("$  \n");
+  printf("$ ");
   scanf("%s", command ,stdin);
   return command;
 
@@ -29,7 +29,11 @@ char* read(char* command)
 
 char* eval(char* command)
 {
-  return ("%s : command not found\n");
+  char* output = calloc(1024, sizeof(char));
+  strcpy(output, command);
+  const char* suffix = ": command not found\n";
+  strcat(output, suffix);
+  return output;
 }
 
 void print(char* output)
