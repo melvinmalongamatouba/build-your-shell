@@ -10,7 +10,8 @@ const char path_delim = ':';
 #endif
 
 bool executable_is_in_path(const char* str, char* path_to_consider);
-char* _read();
+char* path_with_executable(const char* executable, char* path);
+char* input_read();
 int eval(const char* command, char* output);
 void print(char* output);
 bool hasPrefix(const char* command, const char* prefix);
@@ -29,7 +30,7 @@ int main(int argc, char *argv[]) {
   executable_is_in_path("",".");
   while (true)
   {
-    char *command  = _read();
+    char *command  = input_read();
     char *output = calloc(1024, sizeof(char));
     int res = eval(command, output);
     if ((res == 0)||(res ==1))
@@ -40,7 +41,7 @@ int main(int argc, char *argv[]) {
   return 0;
 }
 
-char* _read()
+char* input_read()
 {
   char *line = nullptr;
   size_t lineSize = 0;
@@ -94,13 +95,32 @@ bool executable_is_in_path(const char* str, char* path_to_consider)
   return false;
 }
 
-int show_executable_in_path(const char* command, char* output, char* path)
+int type_executable_in_path(const char* command, char* output, char* path)
 {
-  if (path == NULL || *path == '\0')
+  const char* fullPath = path_with_executable(command +strlen("type "), path);
+  if (fullPath == NULL)
   {
     strcpy(output, command + strlen("type "));
     strcat(output, ": not found\n");
-    return -1;
+
+  } else
+  {
+    strcpy(output, command + strlen("type "));
+    strcat(output, " is ");
+    strcat(output, fullPath);
+    strcat(output, "\n");
+
+  }
+  return -1;
+
+
+}
+
+char* path_with_executable(const char* executable, char* path)
+{
+  if (path == NULL || *path == '\0')
+  {
+    return nullptr;
   }
 
     //parse path : clip first path to consider
@@ -108,7 +128,6 @@ int show_executable_in_path(const char* command, char* output, char* path)
     while (path[i] != '\0' && path[i] != path_delim)
     {
       i++; //substring of next path to be considered is path[0,i-1] i-th char excluded
-      if (i<21)
       {
         //printf("%c, i = %d \n", path[i], i);
         //fflush(stdout);
@@ -119,19 +138,17 @@ int show_executable_in_path(const char* command, char* output, char* path)
     //printf("path_to_consider : %s\n", path_to_consider);
     //tfflush(stdout);
 
-    if (executable_is_in_path(command + strlen("type "), path_to_consider))
+    if (executable_is_in_path(executable, path_to_consider))
     {
+      char* output = calloc(1024, sizeof(char));
 
-      strcpy(output, command + strlen("type "));
-      strcat(output, " is ");
-      strcat(output, path_to_consider);
+      strcpy(output, path_to_consider);
       strcat(output, "/");
-      strcat(output, command + strlen("type "));
-      strcat(output, "\n");
-      return -1;
+      strcat(output, executable);
+      return output;
     }
 
-  return show_executable_in_path(command, output, path+strlen(path_to_consider)+1);
+  return path_with_executable(executable, path+strlen(path_to_consider)+1);
   // Search in entire path environment variable minus the path already tested for
 
 }
@@ -146,7 +163,7 @@ int type_(const char* command, char* output)
   //Search path
   char* path = getenv("PATH");
   //printf("path to search : %s\n", path);
-  return show_executable_in_path(command, output, path);
+  return type_executable_in_path(command, output, path);
 
 }
 
