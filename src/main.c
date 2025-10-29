@@ -117,7 +117,7 @@ int show_executable_in_path(const char* command, char* output, char* path)
     char* path_to_consider = calloc(i, sizeof(char));
     strncpy(path_to_consider, path, i);
     //printf("path_to_consider : %s\n", path_to_consider);
-    //fflush(stdout);
+    //tfflush(stdout);
 
     if (executable_is_in_path(command + strlen("type "), path_to_consider))
     {
@@ -143,7 +143,7 @@ int type_(const char* command, char* output)
     return -1;
   //Search path
   char* path = getenv("PATH");
-  printf("path to search : %s\n", path);
+  //printf("path to search : %s\n", path);
   return show_executable_in_path(command, output, path);
 
 }
