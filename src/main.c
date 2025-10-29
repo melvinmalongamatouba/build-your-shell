@@ -246,5 +246,6 @@ int eval(const char* command, char* output)
 
 void print(char* output)
 {
-  printf("%s", output);
+  if (output != NULL && output[0] != '\0')
+    printf("%s", output);
 }
