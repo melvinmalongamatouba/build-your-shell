@@ -3,6 +3,7 @@
 
 int main(int argc, char *argv[]) {
   // Flush after every printf
+  printf("$ ");
   char command[1024];
   scanf("%s", command ,stdin);
   printf("%s: command not found", command);
