@@ -6,6 +6,7 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <sys/stat.h>
+#include <sys/syslimits.h>
 
 #ifdef _WIN32
   const char path_delim = ';';
@@ -21,6 +22,7 @@ char* input_read();
 int eval(const char* command, char* output);
 void print(char* output);
 bool hasPrefix(const char* command, const char* prefix);
+int cd_command(char* const* argv, char* output);
 
 char empty_string[1024];
 char* const builtin_list[]= {
@@ -205,7 +207,6 @@ int cd_absolute_path_subcommand(const char* path, char* output)
     return -1;
   } else
   {
-    fflush(stdout);
     struct stat statbuf;
     if (0==stat(path,&statbuf))
     {
@@ -227,6 +228,43 @@ int cd_absolute_path_subcommand(const char* path, char* output)
   }
 }
 
+int cd_relative_path_subcommand_rec(char* path_to_compute, char* output, char* current_location_path)
+{
+  if (hasPrefix(path_to_compute,"../"))
+  {
+    char* new_path_to_compute = calloc(strlen(path_to_compute)-3, sizeof(char));
+    strncpy(new_path_to_compute, path_to_compute + 3, strlen(new_path_to_compute));
+
+    return cd_relative_path_subcommand_rec(new_path_to_compute, output, back(current_location_path));
+  }
+  else
+  {
+    char* fullpath = calloc(strlen(path_to_compute)+strlen(current_location_path)+1, sizeof(char));
+    strcpy(fullpath, current_location_path);
+    strcat(fullpath, "/");
+    strcat(fullpath, path_to_compute);
+    return cd_absolute_path_subcommand(fullpath, output);
+  }
+}
+
+int cd_relative_path_subcommand(const char* relative_path, char* output)
+{
+  char* path_to_compute = calloc(strlen(relative_path)-2, sizeof(char));
+  if (hasPrefix(relative_path,"./"))
+  {
+    strncpy(path_to_compute, relative_path + 2, strlen(path_to_compute));
+
+  } else
+  {
+    strncpy(path_to_compute, relative_path + 3, strlen(path_to_compute)-1);
+  }
+
+    char*start_location = calloc(PATH_MAX, sizeof(char));
+    getcwd(start_location, PATH_MAX);
+    return cd_relative_path_subcommand_rec(path_to_compute, output, start_location );
+
+}
+
 int cd_command(char* const* argv, char* output)
 {
   if (argv==NULL || argv[1] == NULL)
@@ -237,9 +275,11 @@ int cd_command(char* const* argv, char* output)
   }
   if (hasPrefix(argv[1],"/")==true)
   {
-    int res = cd_absolute_path_subcommand(argv[1], output);
-    fflush(stdout);
-    return res;
+    return cd_absolute_path_subcommand(argv[1], output);
+  }
+  if (hasPrefix(argv[1],".")==true)
+  {
+    return cd_relative_path_subcommand(argv[1], output);
   }
 
   return -1;
