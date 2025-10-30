@@ -13,8 +13,9 @@ const char path_delim = ':';
 #endif
 
 char* parse_till_space(const char* command);
-bool executable_is_in_path(const char* str, char* path_to_consider);
-char* path_to_executable(const char* executable, char* path);
+bool is_executable_in_this_path(const char* str, char* path_to_consider);
+char* find_path_to_executable(const char* executable);
+char* find_path_to_executable_rec(const char* executable, char* path);
 char* input_read();
 int eval(const char* command, char* output);
 void print(char* output);
@@ -26,9 +27,10 @@ char* const builtin_list[]= {
   "echo",
   "shell",
   "exit",
-  "pwd"
+  "pwd",
+  "cd"
 };
-int const builtin_list_length = 5;
+int const builtin_list_length = 6;
 
 int main(int argc, char *argv[]) {
   // Flush after every printf
@@ -65,17 +67,18 @@ bool hasPrefix(const char* command, const char* prefix)
   return (strncmp(prefix, command, strlen(prefix)-1) == 0);
 }
 
-int exit_(const char* command)
+//output is unused but is kept so that all behaviors (except for echo) conform to an "interface"
+int exit_(const char** argv, char* output)
 {
-  if (command == NULL || strlen(command) == 0)
-    return false;
-  return command[strlen(command) - 1]-48;
+  if (argv == NULL || argv[1]==NULL )
+    return -1;
+  return argv[1][0]-48;
 }
 
 // -------------------------- General purpose command parser ---------------------
-char** parse_command(const char* command)
+const char** parse_command(const char* command)
 {
-  char** argv = calloc(10, sizeof(char*));
+  const char** argv = calloc(10, sizeof(char*));
   size_t index_in_str_current_argument = 0;
   size_t index_current_argument = 0;
   while (command[index_in_str_current_argument] != '\0')
@@ -85,40 +88,32 @@ char** parse_command(const char* command)
     index_current_argument++;
     index_in_str_current_argument += strlen(argument)+1;
   }
-
   return argv;
-
 }
 
-//-------------------------- Different eval behaviors ---------------------------
-int cd_command(const char* command, char* output)
+char* parse_till_space(const char* command)
 {
-
-  return -1;
-}
-
-int pwd(const char* command, char* output)
-{
-  if (strcmp(command, "pwd")==0)
+  int i = 0;
+  while (command[i] != '\0' && command[i] != ' ')
   {
-    getcwd(output, 1024);
-    strcat(output, "\n");
-
-  }else
-  {
-    strcpy(output, "pwd: too many arguments");
+    i++;
   }
-
-  return -1;
+  char* prefix = calloc(i, sizeof(char));
+  strncpy(prefix, command, i);
+  return prefix;
 }
-int builtin_type_(const char* command, char* output)
+
+
+//------------------------- Helper function for type and external execution ------
+
+int type_builtin_subcommand(const char* command, char* output)
 {
 
   for (int i = 0; i<builtin_list_length; i++)
   {
-    if (strcmp(command + strlen("type "), builtin_list[i]) == 0)
+    if (strcmp(command, builtin_list[i]) == 0)
     {
-      strcpy(output, command + strlen("type "));
+      strcpy(output, command);
       strcat(output, " is a shell builtin\n");
       return 1;
     }
@@ -127,7 +122,7 @@ int builtin_type_(const char* command, char* output)
 
 }
 
-bool executable_is_in_path(const char* str, char* path_to_consider)
+bool is_executable_in_this_path(const char* str, char* path_to_consider)
 {
   char fullPath [1024];
   snprintf(fullPath, sizeof(fullPath), "%s/%s", path_to_consider, str);
@@ -137,28 +132,33 @@ bool executable_is_in_path(const char* str, char* path_to_consider)
   return false;
 }
 
-int type_executable_in_path(const char* command, char* output, char* path)
+int type_not_builtin_subcommand(const char* executable_candidate, char* output)
 {
-  const char* fullPath = path_to_executable(command +strlen("type "), path);
+  const char* fullPath = find_path_to_executable(executable_candidate);
   if (fullPath == NULL)
   {
-    strcpy(output, command + strlen("type "));
+    strcpy(output, executable_candidate);
     strcat(output, ": not found\n");
 
   } else
   {
-    strcpy(output, command + strlen("type "));
+    strcpy(output, executable_candidate);
     strcat(output, " is ");
     strcat(output, fullPath);
     strcat(output, "\n");
 
   }
   return -1;
+}
 
+char* find_path_to_executable(const char* executable)
+{
+  char* path = getenv("PATH");
+  return find_path_to_executable_rec(executable, path);
 
 }
 
-char* path_to_executable(const char* executable, char* path)
+char* find_path_to_executable_rec(const char* executable, char* path)
 {
   if (path == NULL || *path == '\0')
   {
@@ -180,7 +180,7 @@ char* path_to_executable(const char* executable, char* path)
     //printf("path_to_consider : %s\n", path_to_consider);
     //tfflush(stdout);
 
-    if (executable_is_in_path(executable, path_to_consider))
+    if (is_executable_in_this_path(executable, path_to_consider))
     {
       char* output = calloc(1024, sizeof(char));
 
@@ -191,25 +191,53 @@ char* path_to_executable(const char* executable, char* path)
     }
   const size_t step = strlen(path_to_consider);
   free(path_to_consider);
-  return path_to_executable(executable, path+step+1);
+  return find_path_to_executable_rec(executable, path+step+1);
   // Search in entire path environment variable minus the path already tested for
 
 }
 
-int type_(const char* command, char* output)
-{
-  //printf("at type_");
-  fflush(stdout);
-  int res;
-  if (builtin_type_(command, output) == 1) //it was a builtin type and builtin_type set output accordingly
-    return -1;
-  //Search path
-  char* path = getenv("PATH");
-  //printf("path to search : %s\n", path);
-  return type_executable_in_path(command, output, path);
 
+
+//-------------------------- Different eval behaviors ---------------------------
+
+
+int cd_command(const char** argv, char* output)
+{
+
+  return -1;
 }
 
+int pwd_command(const char **argv, char* output)
+{
+
+  if (argv!= NULL && argv[1] == NULL)
+  {
+    getcwd(output, 1024);
+    strcat(output, "\n");
+
+  }else
+  {
+    strcpy(output, "pwd: too many arguments");
+  }
+
+  return -1;
+}
+
+int type_(const char** argv, char* output)
+{
+  if (argv == NULL || argv[1] == NULL)
+  {
+    return -1;
+
+  }
+
+  if (type_builtin_subcommand(argv[1], output) == 1) //it was a builtin type and builtin_type set output accordingly
+    return -1;
+  //Search path
+  return type_not_builtin_subcommand(argv[1], output);
+
+}
+//We don't use parser because we would need many arguments to accomodate for the uses of " " (currently we only allow up to 10 arguments)
 int echo_(const char* command, char* output)
 {
   output = strncpy(output, command+strlen("echo "), strlen(command)-strlen("echo "));
@@ -217,50 +245,43 @@ int echo_(const char* command, char* output)
   return -1;
 }
 
-char* parse_till_space(const char* command)
-{
-  int i = 0;
-  while (command[i] != '\0' && command[i] != ' ')
-  {
-    i++;
-  }
-  char* prefix = calloc(i, sizeof(char));
-  strncpy(prefix, command, i);
-  return prefix;
-}
+// -------------------------- Eval behavior ---------------
 
 int eval(const char* command, char* output)
 {
   //printf("at eval\n");
   strcpy(output, empty_string);
   //printf("%d" , hasPrefix(command, "exit"));
-  if (hasPrefix(command, "cd"))
+  const char** argv = parse_command(command);
+  if (0 == strcmp(argv[0], "cd"))
   {
-    return cd_command(command, output);
+    return cd_command(argv, output);
   }
-  if (hasPrefix(command, "pwd"))
+  if (0 == strcmp(argv[0], "pwd"))
   {
-    return pwd(command, output);
+    return pwd_command(argv, output);
   }
-  if (hasPrefix(command, "exit"))
+  if (0 == strcmp(argv[0], "exit"))
   {
-    return exit_(command);
+    return exit_(argv, output);
   }
-  if (hasPrefix(command, "echo"))
+  if (0 == strcmp(argv[0], "echo"))
   {
     return echo_(command, output);
   }
-  if (hasPrefix(command, "type"))
+  if (0 == strcmp(argv[0], "type"))
   {
-    return type_(command, output);
+    return type_(argv, output);
   }
 
-  char** argv = parse_command(command);
+
+
+
 
   char* path = getenv("PATH");
   //printf("command: %s\n", command);
   char* executable = argv[0];
-  char* full_path = path_to_executable(executable ,path);
+  char* full_path = find_path_to_executable(executable);
   if (full_path == NULL)
   {
 
