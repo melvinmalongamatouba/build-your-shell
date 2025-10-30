@@ -3,6 +3,9 @@
 #include <string.h>
 #include <dirent.h>
 #include <unistd.h>
+#include <sys/types.h>
+#include <sys/wait.h>
+
 #ifdef _WIN32
   const char path_delim = ';';
 #else
@@ -207,7 +210,7 @@ int eval(const char* command, char* output)
 
   char* path = getenv("PATH");
   //printf("command: %s\n", command);
-  const char* executable = parse_till_space(command);
+  char* executable = parse_till_space(command);
   char* full_path = path_with_executable(executable ,path);
   if (full_path == NULL)
   {
