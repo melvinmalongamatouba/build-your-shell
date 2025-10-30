@@ -12,6 +12,7 @@
 const char path_delim = ':';
 #endif
 
+char* parse_till_space(const char* command);
 bool executable_is_in_path(const char* str, char* path_to_consider);
 char* path_to_executable(const char* executable, char* path);
 char* input_read();
@@ -71,7 +72,31 @@ int exit_(const char* command)
   return command[strlen(command) - 1]-48;
 }
 
+// -------------------------- General purpose command parser ---------------------
+char** parse_command(const char* command)
+{
+  char** argv = calloc(10, sizeof(char*));
+  size_t index_in_str_current_argument = 0;
+  size_t index_current_argument = 0;
+  while (command[index_in_str_current_argument] != '\0')
+  {
+    char* argument = parse_till_space(command+index_in_str_current_argument);
+    argv[index_current_argument] = argument;
+    index_current_argument++;
+    index_in_str_current_argument += strlen(argument)+1;
+  }
+
+  return argv;
+
+}
+
 //-------------------------- Different eval behaviors ---------------------------
+int cd_command(const char* command, char* output)
+{
+
+  return -1;
+}
+
 int pwd(const char* command, char* output)
 {
   if (strcmp(command, "pwd")==0)
@@ -209,6 +234,10 @@ int eval(const char* command, char* output)
   //printf("at eval\n");
   strcpy(output, empty_string);
   //printf("%d" , hasPrefix(command, "exit"));
+  if (hasPrefix(command, "cd"))
+  {
+    return cd_command(command, output);
+  }
   if (hasPrefix(command, "pwd"))
   {
     return pwd(command, output);
@@ -226,9 +255,11 @@ int eval(const char* command, char* output)
     return type_(command, output);
   }
 
+  char** argv = parse_command(command);
+
   char* path = getenv("PATH");
   //printf("command: %s\n", command);
-  char* executable = parse_till_space(command);
+  char* executable = argv[0];
   char* full_path = path_to_executable(executable ,path);
   if (full_path == NULL)
   {
@@ -241,15 +272,12 @@ int eval(const char* command, char* output)
  //The command exists
   // Retrieve arguments
   //Set up array for storing the arguments
-  char** argv = calloc((size_t) 10, sizeof(char*)); //10 = max number of arguments
-  argv[0] = executable;
   //Keeping track of the rank of our current argument
   int argument_rank=1;
   size_t index_next_argument = strlen(executable) + 1;
   while (command[index_next_argument] != '\0')
   {
     char* current_argument = parse_till_space(command+index_next_argument);
-    argv[argument_rank] = current_argument;
     index_next_argument += strlen(current_argument) + 1;
     argument_rank++;
 
