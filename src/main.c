@@ -5,6 +5,7 @@
 #include <unistd.h>
 #include <sys/types.h>
 #include <sys/wait.h>
+#include <sys/stat.h>
 
 #ifdef _WIN32
   const char path_delim = ';';
@@ -64,7 +65,7 @@ bool hasPrefix(const char* command, const char* prefix)
 {
   if (strlen(prefix) > strlen(command))
     return false;
-  return (strncmp(prefix, command, strlen(prefix)-1) == 0);
+  return (strncmp(prefix, command, strlen(prefix)) == 0);
 }
 
 //output is unused but is kept so that all behaviors (except for echo) conform to an "interface"
@@ -106,22 +107,6 @@ char* parse_till_space(const char* command)
 
 //------------------------- Helper function for type and external execution ------
 
-int type_builtin_subcommand(const char* command, char* output)
-{
-
-  for (int i = 0; i<builtin_list_length; i++)
-  {
-    if (strcmp(command, builtin_list[i]) == 0)
-    {
-      strcpy(output, command);
-      strcat(output, " is a shell builtin\n");
-      return 1;
-    }
-  }
-  return -1;
-
-}
-
 bool is_executable_in_this_path(const char* str, char* path_to_consider)
 {
   char fullPath [1024];
@@ -132,24 +117,7 @@ bool is_executable_in_this_path(const char* str, char* path_to_consider)
   return false;
 }
 
-int type_not_builtin_subcommand(const char* executable_candidate, char* output)
-{
-  const char* fullPath = find_path_to_executable(executable_candidate);
-  if (fullPath == NULL)
-  {
-    strcpy(output, executable_candidate);
-    strcat(output, ": not found\n");
 
-  } else
-  {
-    strcpy(output, executable_candidate);
-    strcat(output, " is ");
-    strcat(output, fullPath);
-    strcat(output, "\n");
-
-  }
-  return -1;
-}
 
 char* find_path_to_executable(const char* executable)
 {
@@ -196,14 +164,84 @@ char* find_path_to_executable_rec(const char* executable, char* path)
 
 }
 
+char* last_indirection(const char* path)
+{
+  size_t index = strlen(path) - 1;
+  while (index != 0 && path[index] != '/')
+  {
+
+    index--;
+  }
+  char* suffix = calloc(strlen(path)-index, sizeof(char));
+  suffix = strcpy(suffix, path+index);
+  return suffix;
+}
+
+char* back(const char* path)
+{
+
+  char* suffix = last_indirection(path);
+  if (strcmp(suffix, "/") == 0)
+  {
+    char* new_path = calloc(strlen(path)-1, sizeof(char));
+    strncpy(new_path, path, strlen(new_path));
+    return back(new_path);
+  }
+  char* new_path = calloc(strlen(path)-strlen(suffix), sizeof(char));
+  strncpy(new_path, path, strlen(new_path));
+  return new_path;
+}
+
 
 
 //-------------------------- Different eval behaviors ---------------------------
 
 
+int cd_absolute_path_subcommand(const char* path, char* output)
+{
+  if (path!=NULL && strlen(path)>0 && 0==chdir(path))
+  {
+    output[0] = '\0';
+    return -1;
+  } else
+  {
+    fflush(stdout);
+    struct stat statbuf;
+    if (0==stat(path,&statbuf))
+    {
+      //file exists but cannot be open as directory => assume is not a directory
+      strcpy(output, "cd: ");
+      strcat(output, path);
+      strcat(output, ": Not a directory\n");
+      return -1;
+
+    }
+    else
+    {
+      //file status could not be obtained => assume file doens't exist
+      strcpy(output, "cd: ");
+      strcat(output, path);
+      strcat(output, ": No such file or directory\n");
+      return -1;
+    }
+  }
+}
+
 int cd_command(const char** argv, char* output)
 {
-
+  if (argv==NULL || argv[1] == NULL)
+    return -1;
+  if (argv[2] != NULL)
+  {
+    strcpy(output, "cd: too many arguments");
+  }
+  if (hasPrefix(argv[1],"/")==true)
+  {
+    int res = cd_absolute_path_subcommand(argv[1], output);
+    fflush(stdout);
+    return res;
+  }
+  
   return -1;
 }
 
@@ -220,6 +258,41 @@ int pwd_command(const char **argv, char* output)
     strcpy(output, "pwd: too many arguments");
   }
 
+  return -1;
+}
+
+int type_builtin_subcommand(const char* command, char* output)
+{
+
+  for (int i = 0; i<builtin_list_length; i++)
+  {
+    if (strcmp(command, builtin_list[i]) == 0)
+    {
+      strcpy(output, command);
+      strcat(output, " is a shell builtin\n");
+      return 1;
+    }
+  }
+  return -1;
+
+}
+
+int type_not_builtin_subcommand(const char* executable_candidate, char* output)
+{
+  const char* fullPath = find_path_to_executable(executable_candidate);
+  if (fullPath == NULL)
+  {
+    strcpy(output, executable_candidate);
+    strcat(output, ": not found\n");
+
+  } else
+  {
+    strcpy(output, executable_candidate);
+    strcat(output, " is ");
+    strcat(output, fullPath);
+    strcat(output, "\n");
+
+  }
   return -1;
 }
 
@@ -278,10 +351,9 @@ int eval(const char* command, char* output)
 
 
 
-  char* path = getenv("PATH");
   //printf("command: %s\n", command);
-  char* executable = argv[0];
-  char* full_path = find_path_to_executable(executable);
+  const char* executable = argv[0];
+  const char* full_path = find_path_to_executable(executable);
   if (full_path == NULL)
   {
 
