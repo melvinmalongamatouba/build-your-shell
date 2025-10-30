@@ -69,7 +69,7 @@ bool hasPrefix(const char* command, const char* prefix)
 }
 
 //output is unused but is kept so that all behaviors (except for echo) conform to an "interface"
-int exit_(const char** argv, char* output)
+int exit_(char* const* argv, char* output)
 {
   if (argv == NULL || argv[1]==NULL )
     return -1;
