@@ -220,15 +220,15 @@ int eval(const char* command, char* output)
  //The command exists
   // Retrieve arguments
   //Set up array for storing the arguments
-  char** argc = calloc((size_t) 10, sizeof(char*)); //10 = max number of arguments
-  argc[0] = executable;
+  char** argv = calloc((size_t) 10, sizeof(char*)); //10 = max number of arguments
+  argv[0] = executable;
   //Keeping track of the rank of our current argument
   int argument_rank=1;
   size_t index_next_argument = strlen(executable) + 1;
   while (command[index_next_argument] != '\0')
   {
     char* current_argument = parse_till_space(command+index_next_argument);
-    argc[argument_rank] = current_argument;
+    argv[argument_rank] = current_argument;
     index_next_argument += strlen(current_argument) + 1;
     argument_rank++;
 
@@ -244,7 +244,10 @@ int eval(const char* command, char* output)
   pid_t pid = fork();
   if (pid == 0)
   {
-    execv(full_path, argc);
+    execv(full_path, argv);
+    perror("execv failed");  // good practice: print error if exec fails
+    _exit(EXIT_FAILURE);     // exit child safely if exec fails
+
   } else
   {
     int status;
@@ -258,7 +261,6 @@ int eval(const char* command, char* output)
 
 void print(char* output)
 {
-  printf("at print\n");
   if (output != NULL && output[0] != '\0')
     printf("%s", output);
 }
