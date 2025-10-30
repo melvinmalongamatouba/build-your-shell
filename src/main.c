@@ -77,9 +77,9 @@ int exit_(const char** argv, char* output)
 }
 
 // -------------------------- General purpose command parser ---------------------
-const char** parse_command(const char* command)
+char* const* parse_command(const char* command)
 {
-  const char** argv = calloc(10, sizeof(char*));
+  char** argv = calloc(10, sizeof(char*));
   size_t index_in_str_current_argument = 0;
   size_t index_current_argument = 0;
   while (command[index_in_str_current_argument] != '\0')
@@ -227,7 +227,7 @@ int cd_absolute_path_subcommand(const char* path, char* output)
   }
 }
 
-int cd_command(const char** argv, char* output)
+int cd_command(char* const* argv, char* output)
 {
   if (argv==NULL || argv[1] == NULL)
     return -1;
@@ -241,11 +241,11 @@ int cd_command(const char** argv, char* output)
     fflush(stdout);
     return res;
   }
-  
+
   return -1;
 }
 
-int pwd_command(const char **argv, char* output)
+int pwd_command(char* const* argv, char* output)
 {
 
   if (argv!= NULL && argv[1] == NULL)
@@ -296,7 +296,7 @@ int type_not_builtin_subcommand(const char* executable_candidate, char* output)
   return -1;
 }
 
-int type_(const char** argv, char* output)
+int type_(char* const* argv, char* output)
 {
   if (argv == NULL || argv[1] == NULL)
   {
@@ -311,9 +311,9 @@ int type_(const char** argv, char* output)
 
 }
 //We don't use parser because we would need many arguments to accomodate for the uses of " " (currently we only allow up to 10 arguments)
-int echo_(const char* command, char* output)
+int echo_(const char* entire_command, char* output)
 {
-  output = strncpy(output, command+strlen("echo "), strlen(command)-strlen("echo "));
+  output = strncpy(output, entire_command+strlen("echo "), strlen(entire_command)-strlen("echo "));
   strcat(output, "\n");
   return -1;
 }
@@ -325,7 +325,7 @@ int eval(const char* command, char* output)
   //printf("at eval\n");
   strcpy(output, empty_string);
   //printf("%d" , hasPrefix(command, "exit"));
-  const char** argv = parse_command(command);
+  char* const* argv = parse_command(command);
   if (0 == strcmp(argv[0], "cd"))
   {
     return cd_command(argv, output);
