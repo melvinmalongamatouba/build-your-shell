@@ -269,26 +269,6 @@ int eval(const char* command, char* output)
     strcat(output, suffix);
     return -1;
 }
- //The command exists
-  // Retrieve arguments
-  //Set up array for storing the arguments
-  //Keeping track of the rank of our current argument
-  int argument_rank=1;
-  size_t index_next_argument = strlen(executable) + 1;
-  while (command[index_next_argument] != '\0')
-  {
-    char* current_argument = parse_till_space(command+index_next_argument);
-    index_next_argument += strlen(current_argument) + 1;
-    argument_rank++;
-
-  }
-  //remove empty arguments
-  for (int i = 0; i<argument_rank; i++)
-  {
-    //printf("argc[%d] = %s\n", i, argc[i]);
-
-  }
-
 
   pid_t pid = fork();
   if (pid == 0)
