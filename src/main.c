@@ -258,6 +258,16 @@ char* from_relative_to_absolute_path_rec(const char* path_to_compute, const char
   {
     return from_relative_to_absolute_path_rec(path_to_compute + strlen(".."), parent_folder(current_location_path));
   }
+  if (hasPrefix(path_to_compute,"~/"))
+  {
+    char* home_location = getenv("HOME");
+    return from_relative_to_absolute_path_rec(path_to_compute + strlen("~/"), home_location);
+  }
+  if (hasPrefix(path_to_compute,"~"))
+  {
+    char* home_location = getenv("HOME");
+    return from_relative_to_absolute_path_rec(path_to_compute + strlen("~"), home_location);
+  }
     char* fullpath = calloc(strlen(path_to_compute)+strlen(current_location_path)+1, sizeof(char));
     strcpy(fullpath, current_location_path);
     strcat(fullpath, "/");
