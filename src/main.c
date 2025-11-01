@@ -6,7 +6,7 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <sys/stat.h>
-#include <sys/syslimits.h>
+
 
 #ifdef _WIN32
   const char path_delim = ';';
@@ -266,8 +266,8 @@ char* from_relative_to_absolute_path_rec(const char* path_to_compute, const char
 
 }
 char* from_relative_to_absolute_path(const char* path_to_compute){
-  char* current_location = calloc(PATH_MAX, sizeof(char));
-  getcwd(current_location, PATH_MAX);
+  char* current_location = calloc(1024, sizeof(char));
+  getcwd(current_location, 1024);
   if (hasPrefix(path_to_compute ,"./"))
   {
     return from_relative_to_absolute_path_rec(path_to_compute + strlen("./"), current_location );
