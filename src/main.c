@@ -23,6 +23,7 @@ int eval(const char* command, char* output);
 void print(char* output);
 bool hasPrefix(const char* command, const char* prefix);
 int cd_command(char* const* argv, char* output);
+void test_repl();
 
 char empty_string[1024];
 char* const builtin_list[]= {
@@ -35,8 +36,8 @@ char* const builtin_list[]= {
 };
 int const builtin_list_length = 6;
 
-int main(int argc, char *argv[]) {
-  // Flush after every printf
+void repl(void)
+{
   while (true)
   {
     const char *command  = input_read();
@@ -46,6 +47,11 @@ int main(int argc, char *argv[]) {
       exit(res);
     print(output);
   }
+}
+
+int main(int argc, char *argv[]) {
+  // Flush after every printf
+  repl();
 
   return 0;
 }
@@ -179,19 +185,33 @@ char* last_indirection(const char* path)
   return suffix;
 }
 
-char* back(const char* path)
+char* remove_suffix(const char* string, size_t length)
 {
+  char* res = calloc(strlen(string)-length, sizeof(char));
+  strncpy(res, string, strlen(string)-length);
+  fflush(stdout);
+  return res;
+}
 
+char* parent_folder(const char* path)
+{
+  char* new_path = remove_suffix(path, strlen(last_indirection(path)));
+  if (strlen(new_path)<1)
+    return "/";
+  return new_path;
+
+  /*
   char* suffix = last_indirection(path);
   if (strcmp(suffix, "/") == 0)
   {
     char* new_path = calloc(strlen(path)-1, sizeof(char));
     strncpy(new_path, path, strlen(new_path));
-    return back(new_path);
+    return parent_folder(new_path);
   }
   char* new_path = calloc(strlen(path)-strlen(suffix), sizeof(char));
   strncpy(new_path, path, strlen(new_path));
   return new_path;
+  */
 }
 
 
@@ -228,41 +248,36 @@ int cd_absolute_path_subcommand(const char* path, char* output)
   }
 }
 
-int cd_relative_path_subcommand_rec(char* path_to_compute, char* output, char* current_location_path)
+char* from_relative_to_absolute_path_rec(const char* path_to_compute, const char* current_location_path)
 {
   if (hasPrefix(path_to_compute,"../"))
   {
-    char* new_path_to_compute = calloc(strlen(path_to_compute)-3, sizeof(char));
-    strncpy(new_path_to_compute, path_to_compute + 3, strlen(new_path_to_compute));
-
-    return cd_relative_path_subcommand_rec(new_path_to_compute, output, back(current_location_path));
+    return from_relative_to_absolute_path_rec(path_to_compute + strlen("../"), parent_folder(current_location_path));
   }
-  else
+  if (hasPrefix(path_to_compute,".."))
   {
+    return from_relative_to_absolute_path_rec(path_to_compute + strlen(".."), parent_folder(current_location_path));
+  }
     char* fullpath = calloc(strlen(path_to_compute)+strlen(current_location_path)+1, sizeof(char));
     strcpy(fullpath, current_location_path);
     strcat(fullpath, "/");
     strcat(fullpath, path_to_compute);
-    return cd_absolute_path_subcommand(fullpath, output);
+    return fullpath;
+
+}
+char* from_relative_to_absolute_path(const char* path_to_compute){
+  char* current_location = calloc(PATH_MAX, sizeof(char));
+  getcwd(current_location, PATH_MAX);
+  if (hasPrefix(path_to_compute ,"./"))
+  {
+    return from_relative_to_absolute_path_rec(path_to_compute + strlen("./"), current_location );
   }
+  return from_relative_to_absolute_path_rec(path_to_compute, current_location);
 }
 
 int cd_relative_path_subcommand(const char* relative_path, char* output)
 {
-  char* path_to_compute = calloc(strlen(relative_path)-2, sizeof(char));
-  if (hasPrefix(relative_path,"./"))
-  {
-    strncpy(path_to_compute, relative_path + 2, strlen(path_to_compute));
-
-  } else
-  {
-    strncpy(path_to_compute, relative_path + 3, strlen(path_to_compute)-1);
-  }
-
-    char*start_location = calloc(PATH_MAX, sizeof(char));
-    getcwd(start_location, PATH_MAX);
-    return cd_relative_path_subcommand_rec(path_to_compute, output, start_location );
-
+  return cd_absolute_path_subcommand(from_relative_to_absolute_path(relative_path),output);
 }
 
 int cd_command(char* const* argv, char* output)
@@ -277,12 +292,9 @@ int cd_command(char* const* argv, char* output)
   {
     return cd_absolute_path_subcommand(argv[1], output);
   }
-  if (hasPrefix(argv[1],".")==true)
-  {
-    return cd_relative_path_subcommand(argv[1], output);
-  }
 
-  return -1;
+  return cd_relative_path_subcommand(argv[1], output);
+
 }
 
 int pwd_command(char* const* argv, char* output)
@@ -421,8 +433,78 @@ int eval(const char* command, char* output)
 
 }
 
+
 void print(char* output)
 {
   if (output != NULL && output[0] != '\0')
     printf("%s", output);
 }
+
+
+
+//------------------------- test --------------------------------------
+
+void test_has_prefix(const char* command, char* output, char* prefix)
+{
+  char* positive_message = calloc(1024, sizeof(char));
+  char* negative_message = calloc(1024, sizeof(char));
+  strcpy(negative_message, "The string does not have prefix ");
+  strcpy(positive_message, "The string has prefix ");
+  strcat(negative_message, prefix);
+  strcat(negative_message, "\n");
+  strcat(positive_message, prefix);
+  strcat(positive_message, "\n");
+
+  strcpy(output,
+    (hasPrefix(command, prefix)? positive_message : negative_message));
+
+}
+
+void test_parent_folder(const char* command, char* output)
+{
+  strcpy(output,parent_folder(command));
+}
+
+void test_last_indirection(const char* command, char* output)
+{
+  char * const* argv = parse_command(command);
+  strcat(output, last_indirection(argv[0]));
+  strcat(output, "\n");
+}
+
+void test_remove_suffix(const char* command, char* output)
+{
+  char * const* argv = parse_command(command);
+  char *res = remove_suffix(argv[0],strlen(argv[1]));
+  strcat(output, res );
+  strcat(output, "\n");
+}
+
+void test_from_relative_to_absolute_path(const char* command, char* output)
+{
+  strcat(output, from_relative_to_absolute_path(command));
+}
+
+
+int test_eval(const char* command, char* output)
+{
+  test_from_relative_to_absolute_path(command, output);
+  return -1;
+
+}
+
+
+void test_repl()
+{
+  while (true)
+  {
+    const char *command  = input_read();
+    char *output = calloc(1024, sizeof(char));
+    const int res = test_eval(command, output);
+    if ((res == 0)||(res ==1))
+      exit(res);
+    print(output);
+  }
+}
+
+
