@@ -155,6 +155,14 @@ int echo_(const char *entire_command, char *output);
 char *const *parse_command(const char *command);
 
 /**
+ * parses the first argument of a command and writes it into argv
+ * @param to_parse the command to parse
+ * @param argv pointer to the string of the next argument to set
+ * @return the part of the command that is left to parse
+ */
+char *parse_argument(const char* to_parse, char **argv);
+
+/**
  * @brief returns whether a string has a prefix
  * @param string pointer to the string
  * @param prefix pointer to the candidate prefix string
@@ -170,6 +178,28 @@ bool hasPrefix(const char *string, const char *prefix);
 char *take_until_space(const char *string);
 
 /**
+ * @brief returns the substring of a string before the first occurence of "'"
+ * @param string pointer to the string to parse
+ * @return the substring
+ */
+char *take_until_quote(const char *string);
+
+/**
+ * removes leading ( |\t) characters
+ * @param str
+ * @return
+ */
+char *remove_leading_whitespace(char *str);
+
+/**
+ * @brief returns a string with the trailing char removes
+ * @param string the original string
+ * @param length the number of characters to remove
+ * @return the string with the trailing characters removed
+ */
+char *remove_trailing(const char *string, size_t length);
+
+/**
  * @brief returns whether there is an executable file called executable it the path_to_consider
  * @param executable pointer to the candidate executable name
  * @param path_to_consider pointer to the candidate absolute path name
@@ -178,11 +208,20 @@ char *take_until_space(const char *string);
 bool is_executable_in_this_path(const char *executable, char *path_to_consider);
 
 /**
- * @brief converts a relative path into an absolute path using the cwd as a relative root
- * @param path_to_compute relative path
+ * @brief converts a relative path into an absolute path using the cwd as origin
+ * @param path_to_compute string representing a relative path
  * @return absolute path
  */
 char *from_relative_to_absolute_path(const char *path_to_compute);
+
+/**
+ * @brief converts a relative path into an absolute path provided an absolute path as origin
+ * @param path_to_compute string representing a relative path
+ * @param current_location_path string representing an absolute path
+ * @return absolute path 
+ */
+char *from_relative_to_absolute_path_rec(const char *path_to_compute,
+                                         const char *current_location_path);
 
 /**
  * @brief returns the absolute path to the executable provided it can be reached from the path environment
@@ -194,13 +233,27 @@ char *find_path_to_executable(const char *executable);
 
 /**
  * @brief returns the absolute path to the executable among the list of candidate paths passed in argument
- * @param executable candidate executable name
+ * @param executable string of the executable file name
  * @param paths pointer to a string containing all path location separated by the global path_delim parameter
 *  @return nullptr or absolute path to an executable
  * @note if the executable is not found with the correct permission in the candidate paths, nullptr is returned
  */
 char *find_path_to_executable_rec(const char *executable, char *paths);
 
+/**
+ * @brief returns the last indirection in a path as a string
+ * @param path string name of the path
+ * @return string of the final suffix /$ or entire path
+ */
+char *last_indirection(const char *path);
+
+/**
+ * @brief returns the parent folder of the file described by path or route
+ * @param path string name of the path
+ * @return path file to parent folder
+ * @note if the path does not have a parent then root is returned
+ */
+char *parent_folder(const char *path);
 
 // Test function
 /**
@@ -349,36 +402,109 @@ int pwd_command(char *const *argv, char *output) {
   return -1;
 }
 
-// output is unused but is kept so that all behaviors (except for echo) conform
-// to an "interface"
 int exit_(char *const *argv, char *output) {
   if (argv == NULL || argv[1] == NULL)
     return -1;
   return argv[1][0] - 48;
 }
 
+int type_(char *const *argv, char *output) {
+  if (argv == NULL || argv[1] == NULL) {
+    return -1;
+  }
+
+  if (if_builtin_type_subcommand(argv[1], output) ==
+      1) // it was a builtin type and builtin_type set output accordingly
+        return -1;
+  // Search path
+  return type_not_builtin_subcommand(argv[1], output);
+}
+
+
+bool if_builtin_type_subcommand(const char *command, char *output) {
+
+  for (int i = 0; i < builtin_list_length; i++) {
+    if (strcmp(command, builtin_list[i]) == 0) {
+      strcpy(output, command);
+      strcat(output, " is a shell builtin\n");
+      return true;
+    }
+  }
+  return false;
+}
+
+int type_not_builtin_subcommand(const char *executable_candidate,
+                                char *output) {
+  const char *fullPath = find_path_to_executable(executable_candidate);
+  if (fullPath == NULL) {
+    strcpy(output, executable_candidate);
+    strcat(output, ": not found\n");
+
+  } else {
+    strcpy(output, executable_candidate);
+    strcat(output, " is ");
+    strcat(output, fullPath);
+    strcat(output, "\n");
+  }
+  return -1;
+}
+
+
+
+int echo_(const char *entire_command, char *output) {
+  output = strncpy(output, entire_command + strlen("echo "),
+                   strlen(entire_command) - strlen("echo "));
+  strcat(output, "\n");
+  return -1;
+}
+
+
+char *const *parse_command(const char *command) {
+  char *left_to_parse = calloc(strlen(command), sizeof(char));
+  strcpy(left_to_parse, command);
+  char **argv = calloc(10, sizeof(char *));
+
+  size_t index_in_str_current_argument = 0;
+  size_t index_current_argument = 0;
+
+  left_to_parse = remove_leading_whitespace(left_to_parse);
+  while (*left_to_parse != '\0') {
+    printf(left_to_parse);
+    left_to_parse =
+        parse_argument(left_to_parse, &argv[index_current_argument]);
+    index_current_argument++;
+  }
+  return argv;
+}
+
+char *parse_argument(const char* to_parse, char **argv) {
+  if (to_parse[0] == '\'') {
+    char *argument = take_until_quote(to_parse);
+    to_parse += strlen(argument) + 2;
+    *argv = argument;
+    char *left_to_parse =
+        calloc(strlen(to_parse) - strlen(argument), sizeof(char));
+    strcpy(left_to_parse, to_parse);
+    return left_to_parse;
+  } else {
+    char *argument = take_until_space(to_parse);
+    to_parse += strlen(argument);
+    char *left_to_parse =
+        calloc(strlen(to_parse) - strlen(argument), sizeof(char));
+    strcpy(left_to_parse, to_parse);
+    *argv = argument;
+    return left_to_parse;
+  }
+}
+
+
+
 bool hasPrefix(const char *string, const char *prefix) {
   if (strlen(prefix) > strlen(string))
     return false;
   return (strncmp(prefix, string, strlen(prefix)) == 0);
 }
-
-// -------------------------- Command parser ---------------------
-char *remove_leading_whitespace(char *str) {
-  while (*str == ' ' || *str == '\t') {
-    str++;
-  }
-  return str;
-}
-
-char *remove_suffix(const char *string, size_t length) {
-  char *res = calloc(strlen(string) - length, sizeof(char));
-  strncpy(res, string, strlen(string) - length);
-  fflush(stdout);
-  return res;
-}
-
-char *parse_till_quote(const char *string) {
+char *take_until_quote(const char *string) {
   int i = 0;
   while (string[i] != '\0' && string[i] != '\'') {
     i++;
@@ -398,42 +524,23 @@ char *take_until_space(const char *string) {
   return prefix;
 }
 
-char *parse_argument(char *to_parse, char **argv) {
-  if (to_parse[0] == '\'') {
-    char *argument = parse_till_quote(to_parse);
-    to_parse += strlen(argument) + 2;
-    *argv = argument;
-    return to_parse;
-  } else {
-    char *argument = take_until_space(to_parse);
-    to_parse += strlen(argument);
-    char *left_to_parse =
-        calloc(strlen(to_parse) - strlen(argument), sizeof(char));
-    strcpy(left_to_parse, to_parse);
-    *argv = argument;
-    return left_to_parse;
-  }
-}
-char *const *parse_command(const char *command) {
-  char *left_to_parse = calloc(strlen(command), sizeof(char));
-  strcpy(left_to_parse, command);
-  char **argv = calloc(10, sizeof(char *));
 
-  size_t index_in_str_current_argument = 0;
-  size_t index_current_argument = 0;
 
-  left_to_parse = remove_leading_whitespace(left_to_parse);
-  while (*left_to_parse != '\0') {
-    printf(left_to_parse);
-    left_to_parse =
-        parse_argument(left_to_parse, &argv[index_current_argument]);
-    index_current_argument++;
+char *remove_leading_whitespace(char *str) {
+  while (*str == ' ' || *str == '\t') {
+    str++;
   }
-  return argv;
+  return str;
 }
 
-//------------------------- Helper function for type and external execution
-//------
+char *remove_trailing(const char *string, size_t length) {
+  char *res = calloc(strlen(string) - length, sizeof(char));
+  strncpy(res, string, strlen(string) - length);
+  fflush(stdout);
+  return res;
+}
+
+
 
 bool is_executable_in_this_path(const char *executable, char *path_to_consider) {
   char fullPath[OUTPUT_SIZE];
@@ -462,8 +569,6 @@ char *find_path_to_executable_rec(const char *executable, char *paths) {
   }
   char *path_to_consider = calloc(i, sizeof(char));
   strncpy(path_to_consider, paths, i);
-  // printf("path_to_consider : %s\n", path_to_consider);
-  // tfflush(stdout);
 
   if (is_executable_in_this_path(executable, path_to_consider)) {
     char *result = calloc(1024, sizeof(char));
@@ -492,7 +597,7 @@ char *last_indirection(const char *path) {
 }
 
 char *parent_folder(const char *path) {
-  char *new_path = remove_suffix(path, strlen(last_indirection(path)));
+  char *new_path = remove_trailing(path, strlen(last_indirection(path)));
   if (strlen(new_path) < 1)
     return "/";
   return new_path;
@@ -543,54 +648,6 @@ char *from_relative_to_absolute_path(const char *path_to_compute) {
 }
 
 
-bool if_builtin_type_subcommand(const char *command, char *output) {
-
-  for (int i = 0; i < builtin_list_length; i++) {
-    if (strcmp(command, builtin_list[i]) == 0) {
-      strcpy(output, command);
-      strcat(output, " is a shell builtin\n");
-      return true;
-    }
-  }
-  return false;
-}
-
-int type_not_builtin_subcommand(const char *executable_candidate,
-                                char *output) {
-  const char *fullPath = find_path_to_executable(executable_candidate);
-  if (fullPath == NULL) {
-    strcpy(output, executable_candidate);
-    strcat(output, ": not found\n");
-
-  } else {
-    strcpy(output, executable_candidate);
-    strcat(output, " is ");
-    strcat(output, fullPath);
-    strcat(output, "\n");
-  }
-  return -1;
-}
-
-int type_(char *const *argv, char *output) {
-  if (argv == NULL || argv[1] == NULL) {
-    return -1;
-  }
-
-  if (if_builtin_type_subcommand(argv[1], output) ==
-      1) // it was a builtin type and builtin_type set output accordingly
-    return -1;
-  // Search path
-  return type_not_builtin_subcommand(argv[1], output);
-}
-
-int echo_(const char *entire_command, char *output) {
-  output = strncpy(output, entire_command + strlen("echo "),
-                   strlen(entire_command) - strlen("echo "));
-  strcat(output, "\n");
-  return -1;
-}
-
-
 
 
 //------------------------- test --------------------------------------
@@ -621,7 +678,7 @@ void test_last_indirection(const char *command, char *output) {
 
 void test_remove_suffix(const char *command, char *output) {
   char *const *argv = parse_command(command);
-  char *res = remove_suffix(argv[0], strlen(argv[1]));
+  char *res = remove_trailing(argv[0], strlen(argv[1]));
   strcat(output, res);
   strcat(output, "\n");
 }
