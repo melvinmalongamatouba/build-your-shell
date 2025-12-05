@@ -15,8 +15,14 @@ const char path_delim = ';';
 const char path_delim = ':';
 #endif
 
-
+// Constants
 #define OUTPUT_SIZE 1024
+const char empty_string[1024];
+///list of builtin commands
+char *const builtin_list[] = {"type", "echo", "shell", "exit", "pwd", "cd"};
+int const builtin_list_length = 6;
+
+
 // Signatures
 
 // REPL functions
@@ -48,9 +54,108 @@ int eval(const char *command, char *output);
  */
 void print(char *output);
 
-//Parsing method
+// Specific commands
+
 /**
- * @brief returns wether a string has a prefix
+ * @brief performs a CHNGE command with the argv arguments
+ * @param argv arguments of the CHNGE command
+ * @param output the output to be updated
+ * @return
+ */
+
+/**
+ * @brief performs a cd command with the argv arguments
+ * @param argv arguments of the cd command
+ * @param output the output to be updated
+ * @return -1
+ * @note meant to be called in any case of command prefixed with cd
+ */
+int cd_command(char *const *argv, char *output);
+
+/**
+ * @brief performs a cd command to an absolute path
+ * @param path the absolute path to set the working directory to
+ * @param output the output to be updated
+ * @return -1
+ */
+int cd_absolute_path_subcommand(const char *path, char *output);
+
+/**
+ * @brief performs a cd command to a relative path
+ * @param path the relative path to set the working directory to
+ * @param output the output to be updated
+ * @return -1
+ */
+int cd_relative_path_subcommand(const char *path, char *output);
+
+/**
+ * @brief performs an exit command
+ * @param argv arguments of the exit command
+ * @param output to be updated, in this case is not modified
+ * @return 0 or 1 in normal case
+ * @note assumes the second argument is in {'1'|'0'}
+ * if not returns with a value that isn't significant
+ */
+int exit_(char *const *argv, char *output);
+
+/**
+ * @brief performs a pwd command with the argv arguments
+ * @param argv arguments of the pwd command
+ * @param output the output to be updated
+ * @return -1
+ */
+int pwd_command(char *const *argv, char *output);
+
+/**
+ * @brief performs a type command with the argv arguments
+ * @param argv arguments of the type command
+ * @param output the output to be updated
+ * @return -1
+ */
+int type_(char *const *argv, char *output);
+
+/**
+ * @brief checks whether a command is builtin. If it is, updates the output as per a "type \command" command
+ * @param command the command to be checked
+ * @param output the output to be updated
+ * @return whether the command was builtin or not
+ * @note meant to be called first and the result to be observed before assuming command is not builtin
+ */
+bool if_builtin_type_subcommand(const char *command, char *output);
+
+/**
+ * @brief performs a "type \executable_candidate" command where executable_candidate is assumed to not be builtin
+ * @param executable_candidate the executable to be found
+ * @param output the output to be updated
+ * @return -1
+ */
+int type_not_builtin_subcommand(const char *executable_candidate,
+                                char *output);
+
+/**
+ * @brief performs a type command with the argv arguments
+ * @param entire_command entirety of the command that is prefixed with "echo "
+ * @param output the output to be update
+ * @return -1
+ * @note is called only in the context of an echo command
+ * it was not made to conform to the other command function to accomodate for many space chars
+ */
+int echo_(const char *entire_command, char *output);
+
+
+
+
+//Parsing methods
+/**
+ * parses a command into its arguments
+ * @param command pointer to the entire string of the command
+ * @return pointer to const strings of the arguments in the same manner as argv
+ * @note this method does not account for special behavior in the case of an echo command
+ */
+char *const *parse_command(const char *command);
+
+/**
+ * @brief returns whether a string has a prefix
  * @param string pointer to the string
  * @param prefix pointer to the candidate prefix string
  * @return whether the string command has the string prefix at the start
@@ -65,12 +170,19 @@ bool hasPrefix(const char *string, const char *prefix);
 char *take_until_space(const char *string);
 
 /**
- * @brief returns wether there is an executable file called executable it the path_to_consider
+ * @brief returns whether there is an executable file called executable it the path_to_consider
  * @param executable pointer to the candidate executable name
  * @param path_to_consider pointer to the candidate absolute path name
- * @return wether the executable was found with the appropriate permission
+ * @return whether the executable was found with the appropriate permission
  */
 bool is_executable_in_this_path(const char *executable, char *path_to_consider);
+
+/**
+ * @brief converts a relative path into an absolute path using the cwd as a relative root
+ * @param path_to_compute relative path
+ * @return absolute path
+ */
+char *from_relative_to_absolute_path(const char *path_to_compute);
 
 /**
  * @brief returns the absolute path to the executable provided it can be reached from the path environment
@@ -81,19 +193,32 @@ bool is_executable_in_this_path(const char *executable, char *path_to_consider);
 char *find_path_to_executable(const char *executable);
 
 /**
- * @brief returns the absolute path to the executable provided it can be reached from the path environment
- * @param executable
- * @param path
- * @return
+ * @brief returns the absolute path to the executable among the list of candidate paths passed in argument
+ * @param executable candidate executable name
+ * @param paths pointer to a string containing all path location separated by the global path_delim parameter
+*  @return nullptr or absolute path to an executable
+ * @note if the executable is not found with the correct permission in the candidate paths, nullptr is returned
  */
-char *find_path_to_executable_rec(const char *executable, char *path);
+char *find_path_to_executable_rec(const char *executable, char *paths);
 
-int cd_command(char *const *argv, char *output);
+
+// Test function
+/**
+ * @brief test repl meant to be edited to test specific functionalities
+ */
 void test_repl();
 
-char empty_string[1024];
-char *const builtin_list[] = {"type", "echo", "shell", "exit", "pwd", "cd"};
-int const builtin_list_length = 6;
+//Main
+
+int main(int argc, char *argv[]) {
+  // Flush after every printf
+  repl();
+
+  return 0;
+}
+
+
+// Implementations
 
 void repl(void) {
   while (true) {
@@ -106,12 +231,7 @@ void repl(void) {
   }
 }
 
-int main(int argc, char *argv[]) {
-  // Flush after every printf
-  repl();
 
-  return 0;
-}
 
 char *input_read() {
   char *line = nullptr;
@@ -124,10 +244,109 @@ char *input_read() {
   return line;
 }
 
-bool hasPrefix(const char *string, const char *prefix) {
-  if (strlen(prefix) > strlen(string))
-    return false;
-  return (strncmp(prefix, string, strlen(prefix)) == 0);
+int eval(const char *command, char *output) {
+  // printf("at eval\n");
+  strcpy(output, empty_string);
+  // printf("%d" , hasPrefix(command, "exit"));
+  char *const *argv = parse_command(command);
+  if (0 == strcmp(argv[0], "cd")) {
+    return cd_command(argv, output);
+  }
+  if (0 == strcmp(argv[0], "pwd")) {
+    return pwd_command(argv, output);
+  }
+  if (0 == strcmp(argv[0], "exit")) {
+    return exit_(argv, output);
+  }
+  if (0 == strcmp(argv[0], "echo")) {
+    return echo_(command, output);
+  }
+  if (0 == strcmp(argv[0], "type")) {
+    return type_(argv, output);
+  }
+
+  // printf("command: %s\n", command);
+  const char *executable = argv[0];
+  const char *full_path = find_path_to_executable(executable);
+  if (full_path == NULL) {
+
+    strcpy(output, command);
+    const char *suffix = ": command not found\n";
+    strcat(output, suffix);
+    return -1;
+  }
+
+  pid_t pid = fork();
+  if (pid == 0) {
+    execv(full_path, argv);
+    perror("execv failed"); // good practice: print error if exec fails
+    _exit(EXIT_FAILURE);    // exit child safely if exec fails
+
+  } else {
+    int status;
+    waitpid(pid, &status, 0);
+    return -1;
+  }
+}
+
+void print(char *output) {
+  if (output != NULL && output[0] != '\0')
+    printf("%s", output);
+}
+
+int cd_command(char *const *argv, char *output) {
+  if (argv == NULL || argv[1] == NULL)
+    return -1;
+  if (argv[2] != NULL) {
+    strcpy(output, "cd: too many arguments");
+  }
+  if (hasPrefix(argv[1], "/") == true) {
+    return cd_absolute_path_subcommand(argv[1], output);
+  }
+
+  return cd_relative_path_subcommand(argv[1], output);
+}
+
+int cd_absolute_path_subcommand(const char *path, char *output) {
+  if (path != NULL && strlen(path) > 0 && 0 == chdir(path)) {
+    output[0] = '\0';
+    return -1;
+  } else {
+    struct stat statbuf;
+    if (0 == stat(path, &statbuf)) {
+      // file exists but cannot be open as directory => assume is not a
+      // directory
+      strcpy(output, "cd: ");
+      strcat(output, path);
+      strcat(output, ": Not a directory\n");
+      return -1;
+
+    } else {
+      // file status could not be obtained => assume file doens't exist
+      strcpy(output, "cd: ");
+      strcat(output, path);
+      strcat(output, ": No such file or directory\n");
+      return -1;
+    }
+  }
+}
+
+int cd_relative_path_subcommand(const char *relative_path, char *output) {
+  return cd_absolute_path_subcommand(
+      from_relative_to_absolute_path(relative_path), output);
+}
+
+int pwd_command(char *const *argv, char *output) {
+
+  if (argv != NULL && argv[1] == NULL) {
+    getcwd(output, 1024);
+    strcat(output, "\n");
+
+  } else {
+    strcpy(output, "pwd: too many arguments");
+  }
+
+  return -1;
 }
 
 // output is unused but is kept so that all behaviors (except for echo) conform
@@ -136,6 +355,12 @@ int exit_(char *const *argv, char *output) {
   if (argv == NULL || argv[1] == NULL)
     return -1;
   return argv[1][0] - 48;
+}
+
+bool hasPrefix(const char *string, const char *prefix) {
+  if (strlen(prefix) > strlen(string))
+    return false;
+  return (strncmp(prefix, string, strlen(prefix)) == 0);
 }
 
 // -------------------------- Command parser ---------------------
@@ -224,19 +449,19 @@ char *find_path_to_executable(const char *executable) {
   return find_path_to_executable_rec(executable, path);
 }
 
-char *find_path_to_executable_rec(const char *executable, char *path) {
-  if (path == NULL || *path == '\0') {
+char *find_path_to_executable_rec(const char *executable, char *paths) {
+  if (paths == NULL || *paths == '\0') {
     return nullptr;
   }
 
   // parse path : clip first path to consider
   int i = 0;
-  while (path[i] != '\0' && path[i] != path_delim) {
+  while (paths[i] != '\0' && paths[i] != path_delim) {
     i++; // substring of next path to be considered is path[0,i-1] i-th char
          // excluded
   }
   char *path_to_consider = calloc(i, sizeof(char));
-  strncpy(path_to_consider, path, i);
+  strncpy(path_to_consider, paths, i);
   // printf("path_to_consider : %s\n", path_to_consider);
   // tfflush(stdout);
 
@@ -250,7 +475,7 @@ char *find_path_to_executable_rec(const char *executable, char *path) {
   }
   const size_t step = strlen(path_to_consider);
   free(path_to_consider);
-  return find_path_to_executable_rec(executable, path + step + 1);
+  return find_path_to_executable_rec(executable, paths + step + 1);
   // Search in entire path environment variable minus the path already tested
   // for
 }
@@ -272,46 +497,12 @@ char *parent_folder(const char *path) {
     return "/";
   return new_path;
 
-  /*
-  char* suffix = last_indirection(path);
-  if (strcmp(suffix, "/") == 0)
-  {
-    char* new_path = calloc(strlen(path)-1, sizeof(char));
-    strncpy(new_path, path, strlen(new_path));
-    return parent_folder(new_path);
-  }
-  char* new_path = calloc(strlen(path)-strlen(suffix), sizeof(char));
-  strncpy(new_path, path, strlen(new_path));
-  return new_path;
-  */
 }
 
 //-------------------------- Different eval behaviors
 //---------------------------
 
-int cd_absolute_path_subcommand(const char *path, char *output) {
-  if (path != NULL && strlen(path) > 0 && 0 == chdir(path)) {
-    output[0] = '\0';
-    return -1;
-  } else {
-    struct stat statbuf;
-    if (0 == stat(path, &statbuf)) {
-      // file exists but cannot be open as directory => assume is not a
-      // directory
-      strcpy(output, "cd: ");
-      strcat(output, path);
-      strcat(output, ": Not a directory\n");
-      return -1;
 
-    } else {
-      // file status could not be obtained => assume file doens't exist
-      strcpy(output, "cd: ");
-      strcat(output, path);
-      strcat(output, ": No such file or directory\n");
-      return -1;
-    }
-  }
-}
 
 char *from_relative_to_absolute_path_rec(const char *path_to_compute,
                                          const char *current_location_path) {
@@ -342,8 +533,8 @@ char *from_relative_to_absolute_path_rec(const char *path_to_compute,
   return fullpath;
 }
 char *from_relative_to_absolute_path(const char *path_to_compute) {
-  char *current_location = calloc(1024, sizeof(char));
-  getcwd(current_location, 1024);
+  char *current_location = calloc(OUTPUT_SIZE, sizeof(char));
+  getcwd(current_location, OUTPUT_SIZE);
   if (hasPrefix(path_to_compute, "./")) {
     return from_relative_to_absolute_path_rec(path_to_compute + strlen("./"),
                                               current_location);
@@ -351,47 +542,17 @@ char *from_relative_to_absolute_path(const char *path_to_compute) {
   return from_relative_to_absolute_path_rec(path_to_compute, current_location);
 }
 
-int cd_relative_path_subcommand(const char *relative_path, char *output) {
-  return cd_absolute_path_subcommand(
-      from_relative_to_absolute_path(relative_path), output);
-}
 
-int cd_command(char *const *argv, char *output) {
-  if (argv == NULL || argv[1] == NULL)
-    return -1;
-  if (argv[2] != NULL) {
-    strcpy(output, "cd: too many arguments");
-  }
-  if (hasPrefix(argv[1], "/") == true) {
-    return cd_absolute_path_subcommand(argv[1], output);
-  }
-
-  return cd_relative_path_subcommand(argv[1], output);
-}
-
-int pwd_command(char *const *argv, char *output) {
-
-  if (argv != NULL && argv[1] == NULL) {
-    getcwd(output, 1024);
-    strcat(output, "\n");
-
-  } else {
-    strcpy(output, "pwd: too many arguments");
-  }
-
-  return -1;
-}
-
-int type_builtin_subcommand(const char *command, char *output) {
+bool if_builtin_type_subcommand(const char *command, char *output) {
 
   for (int i = 0; i < builtin_list_length; i++) {
     if (strcmp(command, builtin_list[i]) == 0) {
       strcpy(output, command);
       strcat(output, " is a shell builtin\n");
-      return 1;
+      return true;
     }
   }
-  return -1;
+  return false;
 }
 
 int type_not_builtin_subcommand(const char *executable_candidate,
@@ -415,14 +576,13 @@ int type_(char *const *argv, char *output) {
     return -1;
   }
 
-  if (type_builtin_subcommand(argv[1], output) ==
+  if (if_builtin_type_subcommand(argv[1], output) ==
       1) // it was a builtin type and builtin_type set output accordingly
     return -1;
   // Search path
   return type_not_builtin_subcommand(argv[1], output);
 }
-// We don't use parser because we would need many arguments to accomodate for
-// the uses of " " (currently we only allow up to 10 arguments)
+
 int echo_(const char *entire_command, char *output) {
   output = strncpy(output, entire_command + strlen("echo "),
                    strlen(entire_command) - strlen("echo "));
@@ -430,57 +590,8 @@ int echo_(const char *entire_command, char *output) {
   return -1;
 }
 
-// -------------------------- Eval behavior ---------------
 
-int eval(const char *command, char *output) {
-  // printf("at eval\n");
-  strcpy(output, empty_string);
-  // printf("%d" , hasPrefix(command, "exit"));
-  char *const *argv = parse_command(command);
-  if (0 == strcmp(argv[0], "cd")) {
-    return cd_command(argv, output);
-  }
-  if (0 == strcmp(argv[0], "pwd")) {
-    return pwd_command(argv, output);
-  }
-  if (0 == strcmp(argv[0], "exit")) {
-    return exit_(argv, output);
-  }
-  if (0 == strcmp(argv[0], "echo")) {
-    return echo_(command, output);
-  }
-  if (0 == strcmp(argv[0], "type")) {
-    return type_(argv, output);
-  }
 
-  // printf("command: %s\n", command);
-  const char *executable = argv[0];
-  const char *full_path = find_path_to_executable(executable);
-  if (full_path == NULL) {
-
-    strcpy(output, command);
-    const char *suffix = ": command not found\n";
-    strcat(output, suffix);
-    return -1;
-  }
-
-  pid_t pid = fork();
-  if (pid == 0) {
-    execv(full_path, argv);
-    perror("execv failed"); // good practice: print error if exec fails
-    _exit(EXIT_FAILURE);    // exit child safely if exec fails
-
-  } else {
-    int status;
-    waitpid(pid, &status, 0);
-    return -1;
-  }
-}
-
-void print(char *output) {
-  if (output != NULL && output[0] != '\0')
-    printf("%s", output);
-}
 
 //------------------------- test --------------------------------------
 
