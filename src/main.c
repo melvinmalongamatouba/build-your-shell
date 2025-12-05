@@ -15,19 +15,79 @@ const char path_delim = ';';
 const char path_delim = ':';
 #endif
 
+
+#define OUTPUT_SIZE 1024
 // Signatures
 
-// Top level
+// REPL functions
+/**
+ * @brief performs the repl loop
+ * requires interruption from outside context to exit otherwise loops perpetually
+ */
 void repl(void);
 
-char *parse_till_space(const char *string);
-bool is_executable_in_this_path(const char *str, char *path_to_consider);
-char *find_path_to_executable(const char *executable);
-char *find_path_to_executable_rec(const char *executable, char *path);
+
+/**
+ * @brief Listens for input from the stdin
+ * @return a string containing the input from stdin
+ */
 char *input_read();
+
+/**
+ * @brief evaluates the command and updates the output accordingly
+ * @param command pointer to the string representing the command
+ * @param output pointer to the region to be updated by eval
+ * @note eval assumes output is allocated to a size of OUTPUT_SIZE
+ * @return -1 in all cases or {0,1} in the of exit{0,1}
+ */
 int eval(const char *command, char *output);
+
+/**
+ * @brief prints the output string to stdout
+ * @param output pointer to the string to be printed
+ */
 void print(char *output);
-bool hasPrefix(const char *command, const char *prefix);
+
+//Parsing method
+/**
+ * @brief returns wether a string has a prefix
+ * @param string pointer to the string
+ * @param prefix pointer to the candidate prefix string
+ * @return whether the string command has the string prefix at the start
+ */
+bool hasPrefix(const char *string, const char *prefix);
+
+/**
+ * @brief returns the substring of a string before the first occurence of " "
+ * @param string pointer to the string to parse
+ * @return the substring
+ */
+char *take_until_space(const char *string);
+
+/**
+ * @brief returns wether there is an executable file called executable it the path_to_consider
+ * @param executable pointer to the candidate executable name
+ * @param path_to_consider pointer to the candidate absolute path name
+ * @return wether the executable was found with the appropriate permission
+ */
+bool is_executable_in_this_path(const char *executable, char *path_to_consider);
+
+/**
+ * @brief returns the absolute path to the executable provided it can be reached from the path environment
+ * @param executable candidate executable name
+ * @return nullptr or absolute path to an executable
+ * @note if the executable is not found with the correct permission in the path environment, nullptr is returned
+ */
+char *find_path_to_executable(const char *executable);
+
+/**
+ * @brief returns the absolute path to the executable provided it can be reached from the path environment
+ * @param executable
+ * @param path
+ * @return
+ */
+char *find_path_to_executable_rec(const char *executable, char *path);
+
 int cd_command(char *const *argv, char *output);
 void test_repl();
 
@@ -38,7 +98,7 @@ int const builtin_list_length = 6;
 void repl(void) {
   while (true) {
     const char *command = input_read();
-    char *output = calloc(1024, sizeof(char));
+    char *output = calloc(OUTPUT_SIZE, sizeof(char));
     const int res = eval(command, output);
     if ((res == 0) || (res == 1))
       exit(res);
@@ -48,7 +108,7 @@ void repl(void) {
 
 int main(int argc, char *argv[]) {
   // Flush after every printf
-  test_repl();
+  repl();
 
   return 0;
 }
@@ -64,10 +124,10 @@ char *input_read() {
   return line;
 }
 
-bool hasPrefix(const char *command, const char *prefix) {
-  if (strlen(prefix) > strlen(command))
+bool hasPrefix(const char *string, const char *prefix) {
+  if (strlen(prefix) > strlen(string))
     return false;
-  return (strncmp(prefix, command, strlen(prefix)) == 0);
+  return (strncmp(prefix, string, strlen(prefix)) == 0);
 }
 
 // output is unused but is kept so that all behaviors (except for echo) conform
@@ -103,7 +163,7 @@ char *parse_till_quote(const char *string) {
   return prefix;
 }
 
-char *parse_till_space(const char *string) {
+char *take_until_space(const char *string) {
   int i = 0;
   while (string[i] != '\0' && string[i] != ' ') {
     i++;
@@ -120,7 +180,7 @@ char *parse_argument(char *to_parse, char **argv) {
     *argv = argument;
     return to_parse;
   } else {
-    char *argument = parse_till_space(to_parse);
+    char *argument = take_until_space(to_parse);
     to_parse += strlen(argument);
     char *left_to_parse =
         calloc(strlen(to_parse) - strlen(argument), sizeof(char));
@@ -150,9 +210,9 @@ char *const *parse_command(const char *command) {
 //------------------------- Helper function for type and external execution
 //------
 
-bool is_executable_in_this_path(const char *str, char *path_to_consider) {
-  char fullPath[1024];
-  snprintf(fullPath, sizeof(fullPath), "%s/%s", path_to_consider, str);
+bool is_executable_in_this_path(const char *executable, char *path_to_consider) {
+  char fullPath[OUTPUT_SIZE];
+  snprintf(fullPath, sizeof(fullPath), "%s/%s", path_to_consider, executable);
 
   if (access(fullPath, X_OK) == 0)
     return true;
@@ -174,10 +234,6 @@ char *find_path_to_executable_rec(const char *executable, char *path) {
   while (path[i] != '\0' && path[i] != path_delim) {
     i++; // substring of next path to be considered is path[0,i-1] i-th char
          // excluded
-    {
-      // printf("%c, i = %d \n", path[i], i);
-      // fflush(stdout);
-    }
   }
   char *path_to_consider = calloc(i, sizeof(char));
   strncpy(path_to_consider, path, i);
@@ -185,12 +241,12 @@ char *find_path_to_executable_rec(const char *executable, char *path) {
   // tfflush(stdout);
 
   if (is_executable_in_this_path(executable, path_to_consider)) {
-    char *output = calloc(1024, sizeof(char));
+    char *result = calloc(1024, sizeof(char));
 
-    strcpy(output, path_to_consider);
-    strcat(output, "/");
-    strcat(output, executable);
-    return output;
+    strcpy(result, path_to_consider);
+    strcat(result, "/");
+    strcat(result, executable);
+    return result;
   }
   const size_t step = strlen(path_to_consider);
   free(path_to_consider);
