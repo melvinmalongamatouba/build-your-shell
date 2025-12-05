@@ -6,6 +6,7 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <unistd.h>
+#include <stdbool.h>
 
 // System dependant macros
 
@@ -218,7 +219,7 @@ char *from_relative_to_absolute_path(const char *path_to_compute);
  * @brief converts a relative path into an absolute path provided an absolute path as origin
  * @param path_to_compute string representing a relative path
  * @param current_location_path string representing an absolute path
- * @return absolute path 
+ * @return absolute path
  */
 char *from_relative_to_absolute_path_rec(const char *path_to_compute,
                                          const char *current_location_path);
@@ -226,8 +227,8 @@ char *from_relative_to_absolute_path_rec(const char *path_to_compute,
 /**
  * @brief returns the absolute path to the executable provided it can be reached from the path environment
  * @param executable candidate executable name
- * @return nullptr or absolute path to an executable
- * @note if the executable is not found with the correct permission in the path environment, nullptr is returned
+ * @return NULL or absolute path to an executable
+ * @note if the executable is not found with the correct permission in the path environment, NULL is returned
  */
 char *find_path_to_executable(const char *executable);
 
@@ -235,8 +236,8 @@ char *find_path_to_executable(const char *executable);
  * @brief returns the absolute path to the executable among the list of candidate paths passed in argument
  * @param executable string of the executable file name
  * @param paths pointer to a string containing all path location separated by the global path_delim parameter
-*  @return nullptr or absolute path to an executable
- * @note if the executable is not found with the correct permission in the candidate paths, nullptr is returned
+*  @return NULL or absolute path to an executable
+ * @note if the executable is not found with the correct permission in the candidate paths, NULL is returned
  */
 char *find_path_to_executable_rec(const char *executable, char *paths);
 
@@ -264,7 +265,6 @@ void test_repl();
 //Main
 
 int main(int argc, char *argv[]) {
-  // Flush after every printf
   repl();
 
   return 0;
@@ -287,9 +287,8 @@ void repl(void) {
 
 
 char *input_read() {
-  char *line = nullptr;
+  char *line = NULL;
   size_t lineSize = 0;
-  // printf("at read\n");
   printf("$ ");
   getline(&line, &lineSize, stdin);
   if (lineSize > 1)
@@ -298,9 +297,7 @@ char *input_read() {
 }
 
 int eval(const char *command, char *output) {
-  // printf("at eval\n");
   strcpy(output, empty_string);
-  // printf("%d" , hasPrefix(command, "exit"));
   char *const *argv = parse_command(command);
   if (0 == strcmp(argv[0], "cd")) {
     return cd_command(argv, output);
@@ -318,7 +315,6 @@ int eval(const char *command, char *output) {
     return type_(argv, output);
   }
 
-  // printf("command: %s\n", command);
   const char *executable = argv[0];
   const char *full_path = find_path_to_executable(executable);
   if (full_path == NULL) {
@@ -362,7 +358,8 @@ int cd_command(char *const *argv, char *output) {
 
 int cd_absolute_path_subcommand(const char *path, char *output) {
   if (path != NULL && strlen(path) > 0 && 0 == chdir(path)) {
-    output[0] = '\0';
+    if (output != NULL)
+      output[0] = '\0';
     return -1;
   } else {
     struct stat statbuf;
@@ -469,7 +466,6 @@ char *const *parse_command(const char *command) {
 
   left_to_parse = remove_leading_whitespace(left_to_parse);
   while (*left_to_parse != '\0') {
-    printf(left_to_parse);
     left_to_parse =
         parse_argument(left_to_parse, &argv[index_current_argument]);
     index_current_argument++;
@@ -558,7 +554,7 @@ char *find_path_to_executable(const char *executable) {
 
 char *find_path_to_executable_rec(const char *executable, char *paths) {
   if (paths == NULL || *paths == '\0') {
-    return nullptr;
+    return NULL;
   }
 
   // parse path : clip first path to consider
@@ -581,8 +577,7 @@ char *find_path_to_executable_rec(const char *executable, char *paths) {
   const size_t step = strlen(path_to_consider);
   free(path_to_consider);
   return find_path_to_executable_rec(executable, paths + step + 1);
-  // Search in entire path environment variable minus the path already tested
-  // for
+
 }
 
 char *last_indirection(const char *path) {
@@ -697,11 +692,16 @@ void test_parse_argument(const char *command, char *output) {
 void test_parse_command(const char *command, char *output) {
   char *const *argv = parse_command(command);
   int index = 0;
-  while (argv[index] != NULL) {
+
+
+  while (index<10) {
     strcat(output, "arg: ");
+    snprintf(output + strlen(output), sizeof(output) - strlen(output), "%d", index );
     strcat(output, argv[index]);
     strcat(output, "\n");
+    index++;
   }
+
 }
 
 int test_eval(const char *command, char *output) {
@@ -712,7 +712,7 @@ int test_eval(const char *command, char *output) {
 void test_repl() {
   while (true) {
     const char *command = input_read();
-    char *output = calloc(1024, sizeof(char));
+    char *output = calloc(OUTPUT_SIZE, sizeof(char));
     const int res = test_eval(command, output);
     if ((res == 0) || (res == 1))
       exit(res);
